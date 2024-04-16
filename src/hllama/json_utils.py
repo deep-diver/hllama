@@ -8,7 +8,23 @@ def match_structure(schema: Dict[str, Any], data: Dict[str, Any]) -> bool:
             print(f"Missing key: {key}")
             return False
 
-        if isinstance(expected_type, dict):
+        # Check if the expected_type is explicitly a list of dictionaries
+        if isinstance(expected_type, list):
+            # Ensure the data is a list
+            if not isinstance(data[key], list):
+                print(f"Expected a list for key: {key}, got {type(data[key])}")
+                return False
+            # Check each item in the list if it conforms to the expected dictionary schema
+            for item in data[key]:
+                if not isinstance(item, dict):
+                    print(
+                        f"Expected a dictionary in the list for key: {key}, got {type(item)}"
+                    )
+                    return False
+                # Recursively check the structure of each dictionary in the list
+                if not match_structure(expected_type[0], item):
+                    return False
+        elif isinstance(expected_type, dict):
             # If the expected type is a dictionary, recursively check the structure
             if not isinstance(data[key], dict):
                 print(f"Expected a dictionary for key: {key}, got {type(data[key])}")

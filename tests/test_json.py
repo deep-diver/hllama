@@ -3,9 +3,22 @@ from hllama import json_utils
 
 
 class TestJSONUtils:
-    def test_match_structure(self):
+    def test_match_structure1(self):
         A = {"key1": str, "key2": {"key3": str, "key4": int, "key5": list}}
         B = {"key1": "hello", "key2": {"key3": "world", "key4": 100, "key5": [1, 2, 3]}}
+
+        result = json_utils.match_structure(A, B)
+        assert result is True
+
+    def test_match_structure2(self):
+        A = {"key1": str, "key2": [{"key3": str, "key4": list}]}
+        B = {
+            "key1": "example",
+            "key2": [
+                {"key3": "data", "key4": [1, 2, 3]},
+                {"key3": "more data", "key4": [4, 5]},
+            ],
+        }
 
         result = json_utils.match_structure(A, B)
         assert result is True
