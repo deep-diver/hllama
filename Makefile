@@ -1,3 +1,9 @@
+lint:
+	pip install ruff
+	pip install pre-commit
+	pre-commit install
+	pre-commit run --all-files
+
 test:
 	pytest
 

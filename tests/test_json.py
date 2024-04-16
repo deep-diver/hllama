@@ -1,13 +1,14 @@
 import pytest
 from hllama import json_utils
 
-class TestJSONUtils():
+
+class TestJSONUtils:
     def test_match_structure(self):
         A = {"key1": str, "key2": {"key3": str, "key4": int, "key5": list}}
         B = {"key1": "hello", "key2": {"key3": "world", "key4": 100, "key5": [1, 2, 3]}}
 
         result = json_utils.match_structure(A, B)
-        assert result == True
+        assert result is True
 
     def test_parse_first_json_snippet(self):
         raw_string = """
