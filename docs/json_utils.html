@@ -27,37 +27,115 @@
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">import json
+import logging
 from typing import Dict, Any
 
 
 def match_structure(schema: Dict[str, Any], data: Dict[str, Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Validate that the structure of a data dictionary conforms to the specified schema.
+
+    The function checks if the data dictionary matches the structure defined in the schema dictionary.
+    Each key in the schema represents a field in the data, and its associated value defines the expected type or structure:
+    - If the value is a type, the function checks if the corresponding value in data matches this type.
+    - If the value is a dictionary, the function recursively verifies that the corresponding value in data matches the schema.
+    - If the value is a list, the function expects a list of dictionaries in data and checks each dictionary against the schema specified in the first item of the list.
+
+    Parameters:
+        schema (Dict[str, Any]): A dictionary describing the required structure and types of the data.
+            Each key is a string indicating the field name, and the value indicates the expected type or structure.
+        data (Dict[str, Any]): The data dictionary to be validated against the schema.
+
+    Returns:
+        bool: True if the data matches the schema, False otherwise.
+
+    Raises:
+        logging.error: Logs an error with a specific message when a mismatch or missing key is found.
+
+    Examples:
+        &gt;&gt;&gt; schema = {&#39;name&#39;: str, &#39;age&#39;: int, &#39;contacts&#39;: [{&#39;phone&#39;: str, &#39;email&#39;: str}]}
+        &gt;&gt;&gt; data = {&#39;name&#39;: &#39;John&#39;, &#39;age&#39;: 30, &#39;contacts&#39;: [{&#39;phone&#39;: &#39;12345&#39;, &#39;email&#39;: &#39;john@example.com&#39;}]}
+        &gt;&gt;&gt; match_structure(schema, data)
+        True
+
+        &gt;&gt;&gt; data = {&#39;name&#39;: &#39;John&#39;, &#39;age&#39;: &#39;thirty&#39;, &#39;contacts&#39;: [{&#39;phone&#39;: &#39;12345&#39;, &#39;email&#39;: &#39;john@example.com&#39;}]}
+        &gt;&gt;&gt; match_structure(schema, data)
+        False
+    &#34;&#34;&#34;
     for key, expected_type in schema.items():
         if key not in data:
-            print(f&#34;Missing key: {key}&#34;)
+            logging.error(f&#34;Missing key: {key}&#34;)
             return False
 
-        if isinstance(expected_type, dict):
+        # Check if the expected_type is explicitly a list of dictionaries
+        if isinstance(expected_type, list):
+            # Ensure the data is a list
+            if not isinstance(data[key], list):
+                logging.error(f&#34;Expected a list for key: {key}, got {type(data[key])}&#34;)
+                return False
+            # Check each item in the list if it conforms to the expected dictionary schema
+            for item in data[key]:
+                if not isinstance(item, dict):
+                    logging.error(
+                        f&#34;Expected a dictionary in the list for key: {key}, got {type(item)}&#34;
+                    )
+                    return False
+                # Recursively check the structure of each dictionary in the list
+                if not match_structure(expected_type[0], item):
+                    return False
+        elif isinstance(expected_type, dict):
             # If the expected type is a dictionary, recursively check the structure
             if not isinstance(data[key], dict):
-                print(f&#34;Expected a dictionary for key: {key}, got {type(data[key])}&#34;)
+                logging.error(
+                    f&#34;Expected a dictionary for key: {key}, got {type(data[key])}&#34;
+                )
                 return False
             if not match_structure(expected_type, data[key]):
                 return False
         elif isinstance(expected_type, type):
             # Direct type checking
             if not isinstance(data[key], expected_type):
-                print(f&#34;Key &#39;{key}&#39; expected {expected_type}, got {type(data[key])}&#34;)
+                logging.error(
+                    f&#34;Key &#39;{key}&#39; expected {expected_type.__name__}, got {type(data[key]).__name__}&#34;
+                )
                 return False
         else:
-            print(f&#34;Unsupported type specification: {expected_type}&#34;)
+            # This block now handles cases where expected_type is not recognized
+            logging.error(
+                f&#34;Unsupported type specification for key &#39;{key}&#39;: {expected_type}&#34;
+            )
             return False
 
     return True
 
 
-def _find_json_snippet(raw_snippet):
+def find_json_snippet(raw_snippet):
     &#34;&#34;&#34;
-    _find_json_snippet tries to find JSON snippets in a given raw_snippet string
+    Extract and parse a JSON snippet from a raw text string.
+
+    This function searches for the first instance of an open curly brace (&#39;{&#39;) and the last instance of a close
+    curly brace (&#39;}&#39;) to define the boundaries of a JSON snippet. If these braces are found, the text within
+    these boundaries is attempted to be parsed as JSON. If successful, the parsed JSON object is returned.
+    If the parsing fails due to malformed JSON or if the boundaries cannot be identified, a ValueError is raised.
+
+    Parameters:
+        raw_snippet (str): The raw text input from which to extract the JSON snippet.
+
+    Returns:
+        Optional[dict]: The parsed JSON object as a dictionary if successful, None otherwise.
+
+    Raises:
+        ValueError: If no valid JSON snippet is found or if the JSON snippet cannot be parsed.
+
+    Examples:
+        &gt;&gt;&gt; _find_json_snippet(&#39;Here is a JSON: {&#34;key&#34;: &#34;value&#34;} in text.&#39;)
+        {&#39;key&#39;: &#39;value&#39;}
+
+        &gt;&gt;&gt; _find_json_snippet(&#39;No JSON here.&#39;)
+        ValueError: no JSON code snippet found in string.
+
+        &gt;&gt;&gt; _find_json_snippet(&#39;Bad JSON: {key: &#34;value&#34;}&#39;)
+        ValueError: failed to parse string into JSON format
     &#34;&#34;&#34;
     json_parsed_string = None
 
@@ -76,24 +154,49 @@ def _find_json_snippet(raw_snippet):
     return json_parsed_string
 
 
-def parse_first_json_snippet(snippet):
+def parse_json_snippet(snippet):
     &#34;&#34;&#34;
-    parse_first_json_snippet tries to find JSON snippet and parse into json object
+    Attempts to find and parse the first JSON snippet within the given input, which can be a string or a list of strings.
+    This function searches each input (or each element of the list) to find a JSON formatted substring and tries to parse
+    it into a Python dictionary. If the snippet is a list, the function processes each string in the list sequentially,
+    returning the first successfully parsed JSON object.
+
+    Parameters:
+        snippet (Union[str, List[str]]): The input text or list of texts where a JSON snippet might be located.
+
+    Returns:
+        Optional[dict]: The first successfully parsed JSON object as a dictionary, or None if no valid JSON snippet is found
+        or all attempts to parse fail.
+
+    Raises:
+        logging.error: If an error occurs during the parsing of the snippet from a single string (not a list),
+                       the error is logged and the function returns None.
+
+    Examples:
+        &gt;&gt;&gt; parse_json_snippet(&#39;Here is a JSON snippet: {&#34;name&#34;: &#34;John&#34;, &#34;age&#34;: 31}.&#39;)
+        {&#39;name&#39;: &#39;John&#39;, &#39;age&#39;: 31}
+
+        &gt;&gt;&gt; parse_json_snippet([&#39;No JSON here.&#39;, &#39;Still no JSON.&#39;, &#39;{&#34;valid&#34;: &#34;JSON&#34;}&#39;])
+        {&#39;valid&#39;: &#39;JSON&#39;}
+
+        &gt;&gt;&gt; parse_json_snippet(&#39;Invalid JSON {this is not valid}:&#39;)
+        None
     &#34;&#34;&#34;
     json_parsed_string = None
 
     if isinstance(snippet, list):
         for snippet_piece in snippet:
             try:
-                json_parsed_string = _find_json_snippet(snippet_piece)
+                json_parsed_string = find_json_snippet(snippet_piece)
                 return json_parsed_string
             except ValueError:
                 pass
     else:
         try:
-            json_parsed_string = _find_json_snippet(snippet)
+            json_parsed_string = find_json_snippet(snippet)
         except Exception as e:
-            raise ValueError(str(e))
+            logging.error(str(e))
+            return None
 
     return json_parsed_string</code></pre>
 </details>
@@ -105,67 +208,281 @@ def parse_first_json_snippet(snippet):
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
+<dt id="hllama.json_utils.find_json_snippet"><code class="name flex">
+<span>def <span class="ident">find_json_snippet</span></span>(<span>raw_snippet)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Extract and parse a JSON snippet from a raw text string.</p>
+<p>This function searches for the first instance of an open curly brace ('{') and the last instance of a close
+curly brace ('}') to define the boundaries of a JSON snippet. If these braces are found, the text within
+these boundaries is attempted to be parsed as JSON. If successful, the parsed JSON object is returned.
+If the parsing fails due to malformed JSON or if the boundaries cannot be identified, a ValueError is raised.</p>
+<h2 id="parameters">Parameters</h2>
+<p>raw_snippet (str): The raw text input from which to extract the JSON snippet.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>Optional[dict]</code></dt>
+<dd>The parsed JSON object as a dictionary if successful, None otherwise.</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>ValueError</code></dt>
+<dd>If no valid JSON snippet is found or if the JSON snippet cannot be parsed.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<pre><code class="language-python-repl">&gt;&gt;&gt; _find_json_snippet('Here is a JSON: {&quot;key&quot;: &quot;value&quot;} in text.')
+{'key': 'value'}
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; _find_json_snippet('No JSON here.')
+ValueError: no JSON code snippet found in string.
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; _find_json_snippet('Bad JSON: {key: &quot;value&quot;}')
+ValueError: failed to parse string into JSON format
+</code></pre></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_json_snippet(raw_snippet):
+    &#34;&#34;&#34;
+    Extract and parse a JSON snippet from a raw text string.
+
+    This function searches for the first instance of an open curly brace (&#39;{&#39;) and the last instance of a close
+    curly brace (&#39;}&#39;) to define the boundaries of a JSON snippet. If these braces are found, the text within
+    these boundaries is attempted to be parsed as JSON. If successful, the parsed JSON object is returned.
+    If the parsing fails due to malformed JSON or if the boundaries cannot be identified, a ValueError is raised.
+
+    Parameters:
+        raw_snippet (str): The raw text input from which to extract the JSON snippet.
+
+    Returns:
+        Optional[dict]: The parsed JSON object as a dictionary if successful, None otherwise.
+
+    Raises:
+        ValueError: If no valid JSON snippet is found or if the JSON snippet cannot be parsed.
+
+    Examples:
+        &gt;&gt;&gt; _find_json_snippet(&#39;Here is a JSON: {&#34;key&#34;: &#34;value&#34;} in text.&#39;)
+        {&#39;key&#39;: &#39;value&#39;}
+
+        &gt;&gt;&gt; _find_json_snippet(&#39;No JSON here.&#39;)
+        ValueError: no JSON code snippet found in string.
+
+        &gt;&gt;&gt; _find_json_snippet(&#39;Bad JSON: {key: &#34;value&#34;}&#39;)
+        ValueError: failed to parse string into JSON format
+    &#34;&#34;&#34;
+    json_parsed_string = None
+
+    json_start_index = raw_snippet.find(&#34;{&#34;)
+    json_end_index = raw_snippet.rfind(&#34;}&#34;)
+
+    if json_start_index &gt;= 0 and json_end_index &gt;= 0:
+        json_snippet = raw_snippet[json_start_index : json_end_index + 1]
+        try:
+            json_parsed_string = json.loads(json_snippet, strict=False)
+        except ValueError:
+            raise ValueError(&#34;failed to parse string into JSON format&#34;)
+    else:
+        raise ValueError(&#34;no JSON code snippet found in string.&#34;)
+
+    return json_parsed_string</code></pre>
+</details>
+</dd>
 <dt id="hllama.json_utils.match_structure"><code class="name flex">
 <span>def <span class="ident">match_structure</span></span>(<span>schema: Dict[str, Any], data: Dict[str, Any]) ‑> bool</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Validate that the structure of a data dictionary conforms to the specified schema.</p>
+<p>The function checks if the data dictionary matches the structure defined in the schema dictionary.
+Each key in the schema represents a field in the data, and its associated value defines the expected type or structure:
+- If the value is a type, the function checks if the corresponding value in data matches this type.
+- If the value is a dictionary, the function recursively verifies that the corresponding value in data matches the schema.
+- If the value is a list, the function expects a list of dictionaries in data and checks each dictionary against the schema specified in the first item of the list.</p>
+<h2 id="parameters">Parameters</h2>
+<p>schema (Dict[str, Any]): A dictionary describing the required structure and types of the data.
+Each key is a string indicating the field name, and the value indicates the expected type or structure.
+data (Dict[str, Any]): The data dictionary to be validated against the schema.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>bool</code></dt>
+<dd>True if the data matches the schema, False otherwise.</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>logging.error</code></dt>
+<dd>Logs an error with a specific message when a mismatch or missing key is found.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<pre><code class="language-python-repl">&gt;&gt;&gt; schema = {'name': str, 'age': int, 'contacts': [{'phone': str, 'email': str}]}
+&gt;&gt;&gt; data = {'name': 'John', 'age': 30, 'contacts': [{'phone': '12345', 'email': 'john@example.com'}]}
+&gt;&gt;&gt; match_structure(schema, data)
+True
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; data = {'name': 'John', 'age': 'thirty', 'contacts': [{'phone': '12345', 'email': 'john@example.com'}]}
+&gt;&gt;&gt; match_structure(schema, data)
+False
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def match_structure(schema: Dict[str, Any], data: Dict[str, Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Validate that the structure of a data dictionary conforms to the specified schema.
+
+    The function checks if the data dictionary matches the structure defined in the schema dictionary.
+    Each key in the schema represents a field in the data, and its associated value defines the expected type or structure:
+    - If the value is a type, the function checks if the corresponding value in data matches this type.
+    - If the value is a dictionary, the function recursively verifies that the corresponding value in data matches the schema.
+    - If the value is a list, the function expects a list of dictionaries in data and checks each dictionary against the schema specified in the first item of the list.
+
+    Parameters:
+        schema (Dict[str, Any]): A dictionary describing the required structure and types of the data.
+            Each key is a string indicating the field name, and the value indicates the expected type or structure.
+        data (Dict[str, Any]): The data dictionary to be validated against the schema.
+
+    Returns:
+        bool: True if the data matches the schema, False otherwise.
+
+    Raises:
+        logging.error: Logs an error with a specific message when a mismatch or missing key is found.
+
+    Examples:
+        &gt;&gt;&gt; schema = {&#39;name&#39;: str, &#39;age&#39;: int, &#39;contacts&#39;: [{&#39;phone&#39;: str, &#39;email&#39;: str}]}
+        &gt;&gt;&gt; data = {&#39;name&#39;: &#39;John&#39;, &#39;age&#39;: 30, &#39;contacts&#39;: [{&#39;phone&#39;: &#39;12345&#39;, &#39;email&#39;: &#39;john@example.com&#39;}]}
+        &gt;&gt;&gt; match_structure(schema, data)
+        True
+
+        &gt;&gt;&gt; data = {&#39;name&#39;: &#39;John&#39;, &#39;age&#39;: &#39;thirty&#39;, &#39;contacts&#39;: [{&#39;phone&#39;: &#39;12345&#39;, &#39;email&#39;: &#39;john@example.com&#39;}]}
+        &gt;&gt;&gt; match_structure(schema, data)
+        False
+    &#34;&#34;&#34;
     for key, expected_type in schema.items():
         if key not in data:
-            print(f&#34;Missing key: {key}&#34;)
+            logging.error(f&#34;Missing key: {key}&#34;)
             return False
 
-        if isinstance(expected_type, dict):
+        # Check if the expected_type is explicitly a list of dictionaries
+        if isinstance(expected_type, list):
+            # Ensure the data is a list
+            if not isinstance(data[key], list):
+                logging.error(f&#34;Expected a list for key: {key}, got {type(data[key])}&#34;)
+                return False
+            # Check each item in the list if it conforms to the expected dictionary schema
+            for item in data[key]:
+                if not isinstance(item, dict):
+                    logging.error(
+                        f&#34;Expected a dictionary in the list for key: {key}, got {type(item)}&#34;
+                    )
+                    return False
+                # Recursively check the structure of each dictionary in the list
+                if not match_structure(expected_type[0], item):
+                    return False
+        elif isinstance(expected_type, dict):
             # If the expected type is a dictionary, recursively check the structure
             if not isinstance(data[key], dict):
-                print(f&#34;Expected a dictionary for key: {key}, got {type(data[key])}&#34;)
+                logging.error(
+                    f&#34;Expected a dictionary for key: {key}, got {type(data[key])}&#34;
+                )
                 return False
             if not match_structure(expected_type, data[key]):
                 return False
         elif isinstance(expected_type, type):
             # Direct type checking
             if not isinstance(data[key], expected_type):
-                print(f&#34;Key &#39;{key}&#39; expected {expected_type}, got {type(data[key])}&#34;)
+                logging.error(
+                    f&#34;Key &#39;{key}&#39; expected {expected_type.__name__}, got {type(data[key]).__name__}&#34;
+                )
                 return False
         else:
-            print(f&#34;Unsupported type specification: {expected_type}&#34;)
+            # This block now handles cases where expected_type is not recognized
+            logging.error(
+                f&#34;Unsupported type specification for key &#39;{key}&#39;: {expected_type}&#34;
+            )
             return False
 
     return True</code></pre>
 </details>
 </dd>
-<dt id="hllama.json_utils.parse_first_json_snippet"><code class="name flex">
-<span>def <span class="ident">parse_first_json_snippet</span></span>(<span>snippet)</span>
+<dt id="hllama.json_utils.parse_json_snippet"><code class="name flex">
+<span>def <span class="ident">parse_json_snippet</span></span>(<span>snippet)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>parse_first_json_snippet tries to find JSON snippet and parse into json object</p></div>
+<div class="desc"><p>Attempts to find and parse the first JSON snippet within the given input, which can be a string or a list of strings.
+This function searches each input (or each element of the list) to find a JSON formatted substring and tries to parse
+it into a Python dictionary. If the snippet is a list, the function processes each string in the list sequentially,
+returning the first successfully parsed JSON object.</p>
+<h2 id="parameters">Parameters</h2>
+<p>snippet (Union[str, List[str]]): The input text or list of texts where a JSON snippet might be located.</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>Optional[dict]</code></dt>
+<dd>The first successfully parsed JSON object as a dictionary, or None if no valid JSON snippet is found</dd>
+</dl>
+<p>or all attempts to parse fail.</p>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>logging.error</code></dt>
+<dd>If an error occurs during the parsing of the snippet from a single string (not a list),
+the error is logged and the function returns None.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<pre><code class="language-python-repl">&gt;&gt;&gt; parse_json_snippet('Here is a JSON snippet: {&quot;name&quot;: &quot;John&quot;, &quot;age&quot;: 31}.')
+{'name': 'John', 'age': 31}
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; parse_json_snippet(['No JSON here.', 'Still no JSON.', '{&quot;valid&quot;: &quot;JSON&quot;}'])
+{'valid': 'JSON'}
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; parse_json_snippet('Invalid JSON {this is not valid}:')
+None
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def parse_first_json_snippet(snippet):
+<pre><code class="python">def parse_json_snippet(snippet):
     &#34;&#34;&#34;
-    parse_first_json_snippet tries to find JSON snippet and parse into json object
+    Attempts to find and parse the first JSON snippet within the given input, which can be a string or a list of strings.
+    This function searches each input (or each element of the list) to find a JSON formatted substring and tries to parse
+    it into a Python dictionary. If the snippet is a list, the function processes each string in the list sequentially,
+    returning the first successfully parsed JSON object.
+
+    Parameters:
+        snippet (Union[str, List[str]]): The input text or list of texts where a JSON snippet might be located.
+
+    Returns:
+        Optional[dict]: The first successfully parsed JSON object as a dictionary, or None if no valid JSON snippet is found
+        or all attempts to parse fail.
+
+    Raises:
+        logging.error: If an error occurs during the parsing of the snippet from a single string (not a list),
+                       the error is logged and the function returns None.
+
+    Examples:
+        &gt;&gt;&gt; parse_json_snippet(&#39;Here is a JSON snippet: {&#34;name&#34;: &#34;John&#34;, &#34;age&#34;: 31}.&#39;)
+        {&#39;name&#39;: &#39;John&#39;, &#39;age&#39;: 31}
+
+        &gt;&gt;&gt; parse_json_snippet([&#39;No JSON here.&#39;, &#39;Still no JSON.&#39;, &#39;{&#34;valid&#34;: &#34;JSON&#34;}&#39;])
+        {&#39;valid&#39;: &#39;JSON&#39;}
+
+        &gt;&gt;&gt; parse_json_snippet(&#39;Invalid JSON {this is not valid}:&#39;)
+        None
     &#34;&#34;&#34;
     json_parsed_string = None
 
     if isinstance(snippet, list):
         for snippet_piece in snippet:
             try:
-                json_parsed_string = _find_json_snippet(snippet_piece)
+                json_parsed_string = find_json_snippet(snippet_piece)
                 return json_parsed_string
             except ValueError:
                 pass
     else:
         try:
-            json_parsed_string = _find_json_snippet(snippet)
+            json_parsed_string = find_json_snippet(snippet)
         except Exception as e:
-            raise ValueError(str(e))
+            logging.error(str(e))
+            return None
 
     return json_parsed_string</code></pre>
 </details>
@@ -188,8 +505,9 @@ def parse_first_json_snippet(snippet):
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
+<li><code><a title="hllama.json_utils.find_json_snippet" href="#hllama.json_utils.find_json_snippet">find_json_snippet</a></code></li>
 <li><code><a title="hllama.json_utils.match_structure" href="#hllama.json_utils.match_structure">match_structure</a></code></li>
-<li><code><a title="hllama.json_utils.parse_first_json_snippet" href="#hllama.json_utils.parse_first_json_snippet">parse_first_json_snippet</a></code></li>
+<li><code><a title="hllama.json_utils.parse_json_snippet" href="#hllama.json_utils.parse_json_snippet">parse_json_snippet</a></code></li>
 </ul>
 </li>
 </ul>
