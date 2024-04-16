@@ -26,7 +26,7 @@ class TestJSONUtils:
         raw_string = """
 Here's a JSON object with instruction-response pairs that adhere to your requirements. The instructions are based on the relationships and attributes of the entities involved, while ensuring they remain general and relevant to broader use cases:
 """
-        assert json_utils.parse_first_json_snippet(raw_string) is None
+        assert json_utils.parse_json_snippet(raw_string) is None
 
         raw_string = """
 Here's a JSON object with instruction-response pairs that adhere to your requirements. The instructions are based on the relationships and attributes of the entities involved, while ensuring they remain general and relevant to broader use cases:
@@ -57,5 +57,5 @@ Here's a JSON object with instruction-response pairs that adhere to your require
 }
 """
 
-        result = json_utils.parse_first_json_snippet(raw_string)
+        result = json_utils.parse_json_snippet(raw_string)
         assert isinstance(result, dict)
