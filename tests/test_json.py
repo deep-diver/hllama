@@ -1,4 +1,3 @@
-import pytest
 from hllama import json_utils
 
 
@@ -27,10 +26,7 @@ class TestJSONUtils:
         raw_string = """
 Here's a JSON object with instruction-response pairs that adhere to your requirements. The instructions are based on the relationships and attributes of the entities involved, while ensuring they remain general and relevant to broader use cases:
 """
-        with pytest.raises(ValueError) as exc_info:
-            json_utils.parse_first_json_snippet(raw_string)
-
-        assert "no JSON code snippet found in string." in str(exc_info.value)
+        assert json_utils.parse_first_json_snippet(raw_string) is None
 
         raw_string = """
 Here's a JSON object with instruction-response pairs that adhere to your requirements. The instructions are based on the relationships and attributes of the entities involved, while ensuring they remain general and relevant to broader use cases:
