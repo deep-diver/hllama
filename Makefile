@@ -4,6 +4,13 @@ lint:
 	pre-commit install
 	pre-commit run --all-files
 
+doc:
+	pip install -U pdoc3
+	rm -rf docs
+	pdoc --html ./src/hllama/ --output-dir docs
+	mv docs/hllama/* docs/
+	rm -rf docs/hllama
+
 test:
 	pytest
 
