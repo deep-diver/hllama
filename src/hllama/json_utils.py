@@ -34,10 +34,13 @@ def match_structure(schema: Dict[str, Any], data: Dict[str, Any]) -> bool:
         elif isinstance(expected_type, type):
             # Direct type checking
             if not isinstance(data[key], expected_type):
-                print(f"Key '{key}' expected {expected_type}, got {type(data[key])}")
+                print(
+                    f"Key '{key}' expected {expected_type.__name__}, got {type(data[key]).__name__}"
+                )
                 return False
         else:
-            print(f"Unsupported type specification: {expected_type}")
+            # This block now handles cases where expected_type is not recognized
+            print(f"Unsupported type specification for key '{key}': {expected_type}")
             return False
 
     return True
