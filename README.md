@@ -28,9 +28,7 @@ Test if there is JSON part in a string
 
 ```python
 raw_string = "..."
-
-try:
-    result = json_utils.parse_first_json_snippet(raw_string)
-except ValueError as e:
-    print(str(e))
+result = json_utils.parse_json_snippet(raw_string)
+assert isinstance(result, dict)
+assert result is not None
 ```
